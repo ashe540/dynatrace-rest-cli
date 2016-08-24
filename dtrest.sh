@@ -30,6 +30,9 @@ PORT=8021
 REQUEST_URL=/rest/management/
 ACCESS_TOKEN=YWRtaW46YWRtaW4=
 
+DBNAME=dynaTrace63
+DBMS=embedded
+
 SERVER_URL="https://"$DT_SERVER":"$PORT
 
 NO_ARGS=0 
@@ -72,7 +75,20 @@ performanceWarehouse () {
 pwhStatus () {
   REQUEST_URL=$REQUEST_URL"status.json"
   ENDPOINT=$SERVER_URL$REQUEST_URL
-  curl -H "Authorization: Basic YWRtaW46YWRtaW4=" $ENDPOINT
+  curl -s -k \ 
+    -H "Authorization: Basic $ACCESS_TOKEN" \
+    $ENDPOINT
+}
+
+pwhRestart () {
+  REQUEST_URL=$REQUEST_URL"config.json?httpMethod=PUT"
+  ENDPOINT=$SERVER_URL$REQUEST_URL
+  curl -s -k \
+    -H "Accept: application/json" \
+    -H "Content-Type: application/json" \
+    -X POST -d '{"dbname":"$DBNAME","dbms":"$DBMS"}' \
+    $ENDPOINT
+
 }
 
 while getopts ":hp:s:" Option
