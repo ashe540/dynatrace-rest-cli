@@ -75,18 +75,17 @@ performanceWarehouse () {
 pwhStatus () {
   REQUEST_URL=$REQUEST_URL"status.json"
   ENDPOINT=$SERVER_URL$REQUEST_URL
-  curl -s -k \ 
-    -H "Authorization: Basic $ACCESS_TOKEN" \
-    $ENDPOINT
+  curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $ENDPOINT
 }
 
 pwhRestart () {
   REQUEST_URL=$REQUEST_URL"config.json?httpMethod=PUT"
   ENDPOINT=$SERVER_URL$REQUEST_URL
   curl -s -k \
+    -H "Authorization: Basic $ACCESS_TOKEN" \
     -H "Accept: application/json" \
     -H "Content-Type: application/json" \
-    -X POST -d '{"dbname":"$DBNAME","dbms":"$DBMS"}' \
+    -X POST -d "{\"dbname\":\""$DBNAME"\",\"dbms\":\""$DBMS"\"}" \
     $ENDPOINT
 
 }
