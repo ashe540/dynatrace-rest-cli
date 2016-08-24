@@ -1,19 +1,36 @@
 #!/bin/bash
 
-# Try invoking this script with:
-#   'scriptname -mn'
-#   'scriptname -oq qOption' (qOption can be some arbitrary string.)
-#   'scriptname -qXXX -r'
+# User Authentication:
+#   Provide user name and password to authenticate against the Dynatrace Server
+#     The authentication technique follows the RFC 2617 standard. 
+#     The BASE 64 hash key must be calculated based on the concatenated 
+#     string consisting of the user name, a colon ( : ),  and the password. 
 #
-#   'scriptname -qr'
-#+      - Unexpected result, takes "r" as the argument to option "q"
-#   'scriptname -q -r' 
-#+      - Unexpected result, same as above
-#   'scriptname -mnop -mnop'  - Unexpected result
-#   (OPTIND is unreliable at stating where an option came from.)
+#     The string Basic plus the hash key must be set as the Authorization 
+#     header to the HTTP request.
+#
+#     To generate the credentials use the following command in your terminal
+#       echo -n "Aladdin:OpenSesame" | base64
+
+#     (The -n makes sure there's not an extra newline being encoded)
+#
+#     This will return a string 'QWxhZGRpbjpPcGVuU2VzYW1l' that is used like so:
+#     Authorization: Basic QWxhZGRpbjpPcGVuU2VzYW1l
+
+
+# Example request:
+#
+# curl -H "Authorization: Basic <ACCESS_TOKEN>" http://DT_SERVER:8021
 #
 #  If an option expects an argument ("flag:"), then it will grab
 #+ whatever is next on the command-line.
+
+DT_SERVER=localhost
+PORT=8021
+REQUEST_URL=/rest/management/
+ACCESS_TOKEN=YWRtaW46YWRtaW4=
+
+SERVER_URL="https://"$DT_SERVER":"$PORT
 
 NO_ARGS=0 
 E_OPTERROR=85
@@ -29,26 +46,40 @@ fi
 help () {
   echo ""
   echo "Usage: `basename $0` options"
-  echo "-h      Prints help for different options"
+  echo "-h   Prints help for different options"
   echo ""
-  echo "-p      Options for Performance Warehouse"
-  echo "    connect         Connects Performance Warehouse"
-  echo "    disconnect      Disconnects Performance Warehouse"
+  echo "-p   Options for Performance Warehouse"
+  echo "         connect         Connects Performance Warehouse"
+  echo "         disconnect      Disconnects Performance Warehouse"
   echo ""
   echo "-s      Options for Dynatrace Server"
 
   exit $E_OPTERROR          # Exit and explain usage.
                             # Usage: scriptname -options
                             # Note: dash (-) necessary
-  
 }
 
+performanceWarehouse () {
+  REQUEST_URL=$REQUEST_URL"pwhconnection/"
+  
+  case $1 in
+    status    ) pwhStatus;;
+    restart   ) pwhRestart;;
+    *         ) echo "Unknown command $1.";; # Default.
+  esac
+}
+
+pwhStatus () {
+  REQUEST_URL=$REQUEST_URL"status.json"
+  ENDPOINT=$SERVER_URL$REQUEST_URL
+  curl -H "Authorization: Basic YWRtaW46YWRtaW4=" $ENDPOINT
+}
 
 while getopts ":hp:s:" Option
 do
   case $Option in
-    h     ) help $OPTARG;;
-    p     ) echo "option -m- \"$OPTARG\"";;
+    h     ) help;;
+    p     ) performanceWarehouse $OPTARG;;
     s     ) echo "Scenario #5: option -$Option";;
     *     ) echo "Missing argument or unimplemented option chosen."; help;;   # Default.
   esac
