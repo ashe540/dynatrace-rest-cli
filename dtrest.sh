@@ -52,10 +52,16 @@ help () {
   echo "-h   Prints help for different options"
   echo ""
   echo "-p   Options for Performance Warehouse"
-  echo "         connect         Connects Performance Warehouse"
-  echo "         disconnect      Disconnects Performance Warehouse"
+  echo "         status         Returns Performance Warehouse status"
+  echo "         restart        Pushes new configuration to PWH and restarts it in the background"
   echo ""
-  echo "-s      Options for Dynatrace Server"
+  echo "-s   Options for Dynatrace Server"
+  echo "         version         Returns Dynatrace Server version"
+  echo "         license         Retrieves license information"
+  echo "         restart         Restarts Dynatrace Server"
+  echo "         shutdown        Shutdown Dynatrace Server"
+  echo "         generateSupport Generate support archive on the server"
+  echo ""
 
   exit $E_OPTERROR          # Exit and explain usage.
                             # Usage: scriptname -options
@@ -70,6 +76,38 @@ performanceWarehouse () {
     restart   ) pwhRestart;;
     *         ) echo "Unknown command $1.";; # Default.
   esac
+}
+
+server () {
+  SERVER_URL=$REQUEST_URL"server/"
+  VERSION_URL=$REQUEST_URL"version"
+  
+  case $1 in
+    version         ) version $VERSION_URL;;
+    license         ) serverLicense $SERVER_URL;;
+    restart         ) serverRestart $SERVER_URL;;
+    shutdown        ) serverShutdown $SERVER_URL;;
+    *               ) echo "Unknown command $1.";; # Default.
+  esac
+}
+
+version () {
+  curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $1
+}
+
+serverLicense () {
+  REQUEST_URL=$1"license/information"
+  curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $REQUEST_URL
+}
+
+serverRestart () {
+  REQUEST_URL=$1"restart"
+  curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $REQUEST_URL
+}
+
+serverShutdown () {
+  REQUEST_URL=$1"shutdown"
+  curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $REQUEST_URL
 }
 
 pwhStatus () {
@@ -95,7 +133,7 @@ do
   case $Option in
     h     ) help;;
     p     ) performanceWarehouse $OPTARG;;
-    s     ) echo "Scenario #5: option -$Option";;
+    s     ) server $OPTARG;;
     *     ) echo "Missing argument or unimplemented option chosen."; help;;   # Default.
   esac
 done
