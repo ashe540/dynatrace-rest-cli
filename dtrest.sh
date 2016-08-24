@@ -33,7 +33,7 @@ ACCESS_TOKEN=YWRtaW46YWRtaW4=
 DBNAME=dynaTrace63
 DBMS=embedded
 
-SERVER_URL="https://"$DT_SERVER":"$PORT
+DTSERVER_URL="https://"$DT_SERVER":"$PORT
 
 NO_ARGS=0 
 E_OPTERROR=85
@@ -92,33 +92,44 @@ server () {
 }
 
 version () {
-  curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $1
+
+  xml=$(curl -s -k \
+    -H "Authorization: Basic $ACCESS_TOKEN" \
+    -H "Accept: text/xml" \
+    -H "Content-Type: text/xml" \
+    $DTSERVER_URL$1)
+
+  re=".*<result value=\"(.*)\"/>"
+  if [[ $xml =~ $re ]]; then
+    echo ${BASH_REMATCH[1]}
+  fi
+
 }
 
 serverLicense () {
-  REQUEST_URL=$1"license/information"
+  REQUEST_URL=$DTSERVER_URL$1"license/information"
   curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $REQUEST_URL
 }
 
 serverRestart () {
-  REQUEST_URL=$1"restart"
+  REQUEST_URL=$DTSERVER_URL$1"restart"
   curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $REQUEST_URL
 }
 
 serverShutdown () {
-  REQUEST_URL=$1"shutdown"
+  REQUEST_URL=$DTSERVER_URL$1"shutdown"
   curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $REQUEST_URL
 }
 
 pwhStatus () {
   REQUEST_URL=$REQUEST_URL"status.json"
-  ENDPOINT=$SERVER_URL$REQUEST_URL
+  ENDPOINT=$DTSERVER_URL$REQUEST_URL
   curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $ENDPOINT
 }
 
 pwhRestart () {
   REQUEST_URL=$REQUEST_URL"config.json?httpMethod=PUT"
-  ENDPOINT=$SERVER_URL$REQUEST_URL
+  ENDPOINT=$DTSERVER_URL$REQUEST_URL
   curl -s -k \
     -H "Authorization: Basic $ACCESS_TOKEN" \
     -H "Accept: application/json" \
