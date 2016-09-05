@@ -62,6 +62,10 @@ help () {
   echo "         shutdown        Shutdown Dynatrace Server"
   echo "         generateSupport Generate support archive on the server"
   echo ""
+  echo "-t SYSTEM_PROFILE_NAME  Options for target System Profile"
+  echo "         enable         Enables selected System Profile"
+  echo "         disable        Disabled selected System Profile"
+  echo ""
 
   exit $E_OPTERROR          # Exit and explain usage.
                             # Usage: scriptname -options
@@ -88,6 +92,16 @@ server () {
     restart         ) serverRestart $SERVER_URL;;
     shutdown        ) serverShutdown $SERVER_URL;;
     *               ) echo "Unknown command $1.";; # Default.
+  esac
+}
+
+systemProfile () {
+  SERVER_URL=$REQUEST_URL"profiles/"
+  
+  case $3 in
+    enable         ) systemProfileEnable $SERVER_URL;;
+    disable        ) systemProfileDisable $SERVER_URL;;
+    *               ) echo "Unknown command $3.";; # Default.
   esac
 }
 
@@ -127,6 +141,28 @@ pwhStatus () {
   curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $ENDPOINT
 }
 
+pwhConnect () {
+  REQUEST_URL=$REQUEST_URL"config.json?httpMethod=PUT"
+  ENDPOINT=$SERVER_URL$REQUEST_URL
+  curl -s -k \
+    -H "Authorization: Basic $ACCESS_TOKEN" \
+    -H "Accept: application/json" \
+    -H "Content-Type: application/json" \
+    -X POST -d "{\"isconnected\":\"true\"}" \
+    $ENDPOINT
+}
+
+pwhDisconnect () {
+  REQUEST_URL=$REQUEST_URL"config.json?httpMethod=PUT"
+  ENDPOINT=$SERVER_URL$REQUEST_URL
+  curl -s -k \
+    -H "Authorization: Basic $ACCESS_TOKEN" \
+    -H "Accept: application/json" \
+    -H "Content-Type: application/json" \
+    -X POST -d "{\"isconnected\":\"false\"}" \
+    $ENDPOINT
+}
+
 pwhRestart () {
   REQUEST_URL=$REQUEST_URL"config.json?httpMethod=PUT"
   ENDPOINT=$DTSERVER_URL$REQUEST_URL
@@ -136,15 +172,25 @@ pwhRestart () {
     -H "Content-Type: application/json" \
     -X POST -d "{\"dbname\":\""$DBNAME"\",\"dbms\":\""$DBMS"\"}" \
     $ENDPOINT
-
 }
 
-while getopts ":hp:s:" Option
+systemProfileEnable () {
+  REQUEST_URL=$DTSERVER_URL$1$OPTARG"/enable"
+  curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $REQUEST_URL
+}
+
+systemProfileDisable () {
+  REQUEST_URL=$DTSERVER_URL$1$OPTARG"/disable"
+  curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $REQUEST_URL
+}
+
+while getopts ":hp:s:t:" Option
 do
   case $Option in
     h     ) help;;
     p     ) performanceWarehouse $OPTARG;;
     s     ) server $OPTARG;;
+    t     ) systemProfile $OPTARG $3;;
     *     ) echo "Missing argument or unimplemented option chosen."; help;;   # Default.
   esac
 done
