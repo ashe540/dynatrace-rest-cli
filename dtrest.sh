@@ -145,15 +145,23 @@ pwhRestart () {
   REQUEST_URL=$REQUEST_URL"config.json?httpMethod=PUT"
   ENDPOINT=$DTSERVER_URL$REQUEST_URL
 
-  # Get credentials from base64 encoded string
-  decoded=$(echo $DB_CRED | base64 --decode)
-  IFS=':' read -a arr <<< "$decoded"
+  config="{\"dbname\":\""$DBNAME"\",\"dbms\":\""$DBMS"\",\"host\":\""$DBHOST"\""
+
+ if [ "$DBMS" != "embedded" ]
+  then
+    # Get credentials from base64 encoded string
+    decoded=$(echo $DB_CRED | base64 --decode)
+    IFS=':' read -a arr <<< "$decoded"
+    config=$config",\"user\":\""${arr[0]}"\",\"password\":\""${arr[1]}"\",\"port\":\""$DBPORT"\"}\""
+ else
+    config=$config"}\""
+ fi
 
   curl -s -k \
     -H "Authorization: Basic $ACCESS_TOKEN" \
     -H "Accept: application/json" \
     -H "Content-Type: application/json" \
-    -X POST -d "{\"dbname\":\""$DBNAME"\",\"dbms\":\""$DBMS"\", \"user\":\""${arr[0]}"\", \"password\":\""${arr[1]}"\", \"host\":\""$DBHOST"\", \"port\":\""$DBPORT"\"}" \
+    -X POST -d $config \
     $ENDPOINT
 
 }
