@@ -2,11 +2,11 @@
 
 # User Authentication:
 #   Provide user name and password to authenticate against the Dynatrace Server
-#     The authentication technique follows the RFC 2617 standard. 
-#     The BASE 64 hash key must be calculated based on the concatenated 
-#     string consisting of the user name, a colon ( : ),  and the password. 
+#     The authentication technique follows the RFC 2617 standard.
+#     The BASE 64 hash key must be calculated based on the concatenated
+#     string consisting of the user name, a colon ( : ),  and the password.
 #
-#     The string Basic plus the hash key must be set as the Authorization 
+#     The string Basic plus the hash key must be set as the Authorization
 #     header to the HTTP request.
 #
 #     To generate the credentials use the following command in your terminal
@@ -25,17 +25,23 @@
 #  If an option expects an argument ("flag:"), then it will grab
 #+ whatever is next on the command-line.
 
+# SERVER SETTINGS CONFIGURATION
 DT_SERVER=localhost
 PORT=8021
-REQUEST_URL=/rest/management/
-ACCESS_TOKEN=YWRtaW46YWRtaW4=
+ACCESS_TOKEN=YOUR_DT_CREDENTIALS_IN_BASE64 # Refer to explanation above
 
+# PERFORMANCE WAREHOUSE CONFIGURATION
 DBNAME=dynaTrace63
-DBMS=embedded
+DBMS=embedded # sqlserver, oracle, embedded...
+DB_CRED=YOUR_PWH_CREDENTIALS_IN_BASE64 # Refer to explanation above
+DBHOST=localhost
+DBPORT=53337
 
-SERVER_URL="https://"$DT_SERVER":"$PORT
+#DO NOT EDIT ANYTHING BEYOND THIS LINE
 
-NO_ARGS=0 
+DTSERVER_URL="https://"$DT_SERVER":"$PORT
+REQUEST_URL=/rest/management/
+NO_ARGS=0
 E_OPTERROR=85
 
 if [ $# -eq "$NO_ARGS" ]    # Script invoked with no command-line args?
@@ -44,7 +50,7 @@ then
   exit $E_OPTERROR          # Exit and explain usage.
                             # Usage: scriptname -options
                             # Note: dash (-) necessary
-fi  
+fi
 
 help () {
   echo ""
@@ -53,6 +59,7 @@ help () {
   echo ""
   echo "-p   Options for Performance Warehouse"
   echo "         status         Returns Performance Warehouse status"
+  echo "         config         Returns Performance Warehouse current configuration"
   echo "         restart        Pushes new configuration to PWH and restarts it in the background"
   echo ""
   echo "-s   Options for Dynatrace Server"
@@ -70,18 +77,19 @@ help () {
 
 performanceWarehouse () {
   REQUEST_URL=$REQUEST_URL"pwhconnection/"
-  
+
   case $1 in
-    status    ) pwhStatus;;
-    restart   ) pwhRestart;;
-    *         ) echo "Unknown command $1.";; # Default.
+    status     ) pwhStatus;;
+    config     ) pwhConfig;;
+    restart    ) pwhRestart;;
+    *          ) echo "Unknown command $1.";; # Default.
   esac
 }
 
 server () {
   SERVER_URL=$REQUEST_URL"server/"
   VERSION_URL=$REQUEST_URL"version"
-  
+
   case $1 in
     version         ) version $VERSION_URL;;
     license         ) serverLicense $SERVER_URL;;
@@ -92,38 +100,60 @@ server () {
 }
 
 version () {
-  curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $1
+
+  xml=$(curl -s -k \
+    -H "Authorization: Basic $ACCESS_TOKEN" \
+    -H "Accept: text/xml" \
+    -H "Content-Type: text/xml" \
+    $DTSERVER_URL$1)
+
+  re=".*<result value=\"(.*)\"/>"
+  if [[ $xml =~ $re ]]; then
+    echo ${BASH_REMATCH[1]}
+  fi
+
 }
 
 serverLicense () {
-  REQUEST_URL=$1"license/information"
+  REQUEST_URL=$DTSERVER_URL$1"license/information"
   curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $REQUEST_URL
 }
 
 serverRestart () {
-  REQUEST_URL=$1"restart"
+  REQUEST_URL=$DTSERVER_URL$1"restart"
   curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $REQUEST_URL
 }
 
 serverShutdown () {
-  REQUEST_URL=$1"shutdown"
+  REQUEST_URL=$DTSERVER_URL$1"shutdown"
   curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $REQUEST_URL
 }
 
 pwhStatus () {
   REQUEST_URL=$REQUEST_URL"status.json"
-  ENDPOINT=$SERVER_URL$REQUEST_URL
+  ENDPOINT=$DTSERVER_URL$REQUEST_URL
+  curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $ENDPOINT
+}
+
+pwhConfig () {
+  REQUEST_URL=$REQUEST_URL"config.json"
+  ENDPOINT=$DTSERVER_URL$REQUEST_URL
   curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $ENDPOINT
 }
 
 pwhRestart () {
   REQUEST_URL=$REQUEST_URL"config.json?httpMethod=PUT"
-  ENDPOINT=$SERVER_URL$REQUEST_URL
+  ENDPOINT=$DTSERVER_URL$REQUEST_URL
+
+  # Get credentials from base64 encoded string
+  decoded=$(echo $DB_CRED | base64 --decode)
+  IFS=':' read -a arr <<< "$decoded"
+
   curl -s -k \
     -H "Authorization: Basic $ACCESS_TOKEN" \
     -H "Accept: application/json" \
     -H "Content-Type: application/json" \
-    -X POST -d "{\"dbname\":\""$DBNAME"\",\"dbms\":\""$DBMS"\"}" \
+    -X POST -d "{\"dbname\":\""$DBNAME"\",\"dbms\":\""$DBMS"\", \"user\":\""${arr[0]}"\", \"password\":\""${arr[1]}"\", \"host\":\""$DBHOST"\", \"port\":\""$DBPORT"\"}" \
     $ENDPOINT
 
 }
