@@ -28,14 +28,16 @@
 # SERVER SETTINGS CONFIGURATION
 DT_SERVER=localhost
 PORT=8021
-ACCESS_TOKEN=YOUR_DT_CREDENTIALS_IN_BASE64 # Refer to explanation above
+ACCESS_TOKEN=YWRtaW46YWRtaW4= #YOUR_DT_CREDENTIALS_IN_BASE64 # Refer to explanation above
 
 # PERFORMANCE WAREHOUSE CONFIGURATION
-DBNAME=dynaTrace63
-DBMS=embedded # sqlserver, oracle, embedded...
-DB_CRED=YOUR_PWH_CREDENTIALS_IN_BASE64 # Refer to explanation above
-DBHOST=localhost
-DBPORT=53337
+# Use these settings only to replace current database configuration using "sh dtrest.sh -p save" command
+NEW_DB_USER=
+NEW_DB_PASS=
+NEW_DB_HOST=
+NEW_DB_PORT=
+NEW_DB_NAME=
+NEW_DBMS= #embedded, sqlserver, oracle, postgresql
 
 #DO NOT EDIT ANYTHING BEYOND THIS LINE
 
@@ -60,14 +62,17 @@ help () {
   echo "-p   Options for Performance Warehouse"
   echo "         status         Returns Performance Warehouse status"
   echo "         config         Returns Performance Warehouse current configuration"
-  echo "         restart        Pushes new configuration to PWH and restarts it in the background"
+  echo "         save           Pushes new configuration for the Performance Warehouse and restarts it in the background (set global config. variables in script)"
+  echo "         connect        Connects the Dynatrace Server to the Performance Warehouse"
+  echo "         disconnect     Disconnects the Dynatrace Server from the Performance Warehouse"
+  echo "         restart        Disconnects and then connects to the Performance Warehouse"
   echo ""
   echo "-s   Options for Dynatrace Server"
   echo "         version         Returns Dynatrace Server version"
   echo "         license         Retrieves license information"
   echo "         restart         Restarts Dynatrace Server"
   echo "         shutdown        Shutdown Dynatrace Server"
-  echo "         generateSupport Generate support archive on the server"
+  # echo "         generateSupport Generate support archive on the server"
   echo ""
 
   exit $E_OPTERROR          # Exit and explain usage.
@@ -81,6 +86,9 @@ performanceWarehouse () {
   case $1 in
     status     ) pwhStatus;;
     config     ) pwhConfig;;
+    save       ) pwhSave;;
+    connect    ) pwhConnect;;
+    disconnect ) pwhDisconnect;;
     restart    ) pwhRestart;;
     *          ) echo "Unknown command $1.";; # Default.
   esac
@@ -116,54 +124,79 @@ version () {
 
 serverLicense () {
   REQUEST_URL=$DTSERVER_URL$1"license/information"
-  curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $REQUEST_URL
+  sendGETRequest $REQUEST_URL
 }
 
 serverRestart () {
   REQUEST_URL=$DTSERVER_URL$1"restart"
-  curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $REQUEST_URL
+  sendSimplePOSTRequest $REQUEST_URL
 }
 
 serverShutdown () {
   REQUEST_URL=$DTSERVER_URL$1"shutdown"
-  curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $REQUEST_URL
+  sendSimplePOSTRequest $REQUEST_URL
 }
 
 pwhStatus () {
-  REQUEST_URL=$REQUEST_URL"status.json"
-  ENDPOINT=$DTSERVER_URL$REQUEST_URL
-  curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $ENDPOINT
+  REQUEST_URL=$DTSERVER_URL$REQUEST_URL"status.json"
+  sendGETRequest $REQUEST_URL
 }
 
 pwhConfig () {
-  REQUEST_URL=$REQUEST_URL"config.json"
-  ENDPOINT=$DTSERVER_URL$REQUEST_URL
-  curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $ENDPOINT
+  REQUEST_URL=$DTSERVER_URL$REQUEST_URL"config.json"
+  sendGETRequest $REQUEST_URL
+}
+
+pwhSave () {
+
+  if [ -z "$NEW_DB_NAME" ] || [ -z "$NEW_DBMS" ] || [ -z "$NEW_DB_HOST" ] || [ -z "$NEW_DB_PORT" ] || [ -z "$NEW_DB_USER" ] || [ -z "$NEW_DB_PASS" ];
+    then
+      echo "Not all variables in the Performance Warehouse configuration section have been assigned data!" 1>&2
+      echo "Exiting..." 1>&2
+	    exit 1
+  fi
+  REQUEST_URL=$DTSERVER_URL$REQUEST_URL"config.json?httpMethod=PUT"
+  config="{\"dbname\":\""$NEW_DB_NAME"\",\"dbms\":\""$NEW_DBMS"\",\"host\":\""$NEW_DB_HOST"\",\"port\":\""$NEW_DB_PORT"\",\"user\":\""$NEW_DB_USER"\",\"password\":\""$NEW_DB_PASS"\"}\""
+  sendPOSTRequest $REQUEST_URL $config
+}
+
+pwhDisconnect () {
+  REQUEST_URL=$DTSERVER_URL$REQUEST_URL"status.json?httpMethod=PUT"
+  ENDPOINT=$REQUEST_URL
+  config="{\"isconnected\":false}"
+  sendPOSTRequest $ENDPOINT $config
+}
+
+pwhConnect () {
+  if [ -z "$ENDPOINT" ]; then ENDPOINT=$DTSERVER_URL$REQUEST_URL"status.json?httpMethod=PUT"; fi
+  config="{\"isconnected\":true}"
+  sendPOSTRequest $ENDPOINT $config
 }
 
 pwhRestart () {
-  REQUEST_URL=$REQUEST_URL"config.json?httpMethod=PUT"
-  ENDPOINT=$DTSERVER_URL$REQUEST_URL
+  pwhDisconnect
+  echo
+  pwhConnect
+}
 
-  config="{\"dbname\":\""$DBNAME"\",\"dbms\":\""$DBMS"\",\"host\":\""$DBHOST"\""
+sendGETRequest() {
+  curl -s -k -H "Authorization: Basic $ACCESS_TOKEN" $1
+}
 
- if [ "$DBMS" != "embedded" ]
-  then
-    # Get credentials from base64 encoded string
-    decoded=$(echo $DB_CRED | base64 --decode)
-    IFS=':' read -a arr <<< "$decoded"
-    config=$config",\"user\":\""${arr[0]}"\",\"password\":\""${arr[1]}"\",\"port\":\""$DBPORT"\"}\""
- else
-    config=$config"}\""
- fi
-
+sendPOSTRequest () {
   curl -s -k \
     -H "Authorization: Basic $ACCESS_TOKEN" \
     -H "Accept: application/json" \
     -H "Content-Type: application/json" \
-    -X POST -d $config \
-    $ENDPOINT
+    -X POST -d $2 \
+    $1
+}
 
+sendSimplePOSTRequest () {
+  curl -s -k \
+    -H "Authorization: Basic $ACCESS_TOKEN" \
+    -X POST \
+    $1
 }
 
 while getopts ":hp:s:" Option
